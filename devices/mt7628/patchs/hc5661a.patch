@@ -1,0 +1,105 @@
+diff --git a/target/linux/ramips/base-files/etc/board.d/01_leds b/target/linux/ramips/base-files/etc/board.d/01_leds
+index 460253c..aebbae7 100755
+--- a/target/linux/ramips/base-files/etc/board.d/01_leds
++++ b/target/linux/ramips/base-files/etc/board.d/01_leds
+@@ -171,6 +171,11 @@ hc5861)
+ 	ucidef_set_led_netdev "wifi5g" "wifi5g" "$board:blue:wlan5g" "rai0"
+ 	ucidef_set_led_default "turbo" "turbo" "$board:blue:turbo" "0"
+ 	;;
++hc5661a)
++	ucidef_set_led_default "system" "system" "$board:blue:system" "1"
++	ucidef_set_led_netdev "internet" "internet" "$board:blue:internet" "eth0.2"
++	set_wifi_led "$board:blue:wlan2g"
++	;;
+ hg255d)
+ 	set_wifi_led "$board:green:wlan"
+ 	set_usb_led "$board:green:usb"
+diff --git a/target/linux/ramips/base-files/etc/board.d/02_network b/target/linux/ramips/base-files/etc/board.d/02_network
+index dbb5fb4..e674676 100755
+--- a/target/linux/ramips/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/base-files/etc/board.d/02_network
+@@ -132,6 +132,10 @@ ramips_setup_interfaces()
+ 	wrtnode|\
+ 	wrtnode2p | \
+ 	wrtnode2r | \
++	hc5661a)
++		ucidef_add_switch "switch0" \
++			"0:lan" "1:lan" "2:lan" "3:lan" "4:wan" "6@eth0"
++		;;
+ 	wt3020|\
+ 	zbt-wa05)
+ 		ucidef_add_switch "switch0" \
+@@ -294,6 +298,11 @@ ramips_setup_macs()
+ 		[ -n "$lan_mac" ] || lan_mac=$(cat /sys/class/net/eth0/address)
+ 		wan_mac=$(macaddr_add "$lan_mac" 1)
+ 		;;
++	hc5661a)
++		lan_mac=`mtd_get_mac_ascii bdinfo "Vfac_mac "`
++		[ -n "$lan_mac" ] || lan_mac=$(cat /sys/class/net/eth0/address)
++		wan_mac=$(macaddr_add "$lan_mac" 1)
++		;;
+ 	linkits7688 | \
+ 	linkits7688d)
+ 		wan_mac=$(mtd_get_mac_binary factory 4)
+diff --git a/target/linux/ramips/base-files/etc/diag.sh b/target/linux/ramips/base-files/etc/diag.sh
+index 0c5abb2..416153d 100644
+--- a/target/linux/ramips/base-files/etc/diag.sh
++++ b/target/linux/ramips/base-files/etc/diag.sh
+@@ -204,6 +204,9 @@ get_status_led() {
+ 	wrtnode)
+ 		status_led="wrtnode:blue:indicator"
+ 		;;
++	hc5661a)
++		status_led="$board:blue:system"
++		;;
+ 	esac
+ }
+ 
+diff --git a/target/linux/ramips/base-files/lib/ramips.sh b/target/linux/ramips/base-files/lib/ramips.sh
+index 10139d7..4b1ee8c 100755
+--- a/target/linux/ramips/base-files/lib/ramips.sh
++++ b/target/linux/ramips/base-files/lib/ramips.sh
+@@ -202,6 +202,9 @@ ramips_board_detect() {
+ 	*"HC5861")
+ 		name="hc5861"
+ 		;;
++	*"HC5661A")
++		name="hc5661a"
++		;;
+ 	*"HG255D")
+ 		name="hg255d"
+ 		;;
+diff --git a/target/linux/ramips/base-files/lib/upgrade/platform.sh b/target/linux/ramips/base-files/lib/upgrade/platform.sh
+index e3bea00..16de638 100755
+--- a/target/linux/ramips/base-files/lib/upgrade/platform.sh
++++ b/target/linux/ramips/base-files/lib/upgrade/platform.sh
+@@ -155,6 +155,13 @@ platform_check_image() {
+ 	x8|\
+ 	y1|\
+ 	y1s|\
++	hc5661a)
++		[ "$magic" != "27051956" ] && {
++			echo "Invalid image type."
++			return 1
++		}
++		return 0
++		;;
+ 	zbt-ape522ii|\
+ 	zbt-wa05|\
+ 	zbt-we826|\
+diff --git a/target/linux/ramips/image/mt7628.mk b/target/linux/ramips/image/mt7628.mk
+index fa7d1e7..651c1fa 100644
+--- a/target/linux/ramips/image/mt7628.mk
++++ b/target/linux/ramips/image/mt7628.mk
+@@ -33,3 +33,11 @@ define Device/duzun-dm06
+   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-ledtrig-usbdev
+ endef
+ TARGET_DEVICES += duzun-dm06
++
++define Device/hc5661a
++  DTS := HC5661A
++  IMAGE_SIZE := $(ralink_default_fw_size_16M)
++  DEVICE_TITLE := HiWiFi HC5661A
++  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-ledtrig-usbdev
++endef
++TARGET_DEVICES += hc5661a
