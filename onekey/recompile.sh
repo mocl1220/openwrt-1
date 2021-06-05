@@ -40,26 +40,12 @@ elif [ $firmware == "friendlyarm_nanopi-r2s" ]; then
 	firmware="nanopi-r2s"
 elif [ $firmware == "friendlyarm_nanopi-r4s" ]; then
 	firmware="nanopi-r4s"
-elif [ $firmware == "xiaoyu_xy-c5" ]; then
-	firmware="XY-C5"
+elif [ $firmware == "rpi-4" ]; then
+	firmware="Rpi-4B"
 elif [ $firmware == "d-team_newifi-d2" ]; then
 	firmware="newifi-d2"
 else
 	echo "无法识别固件类型,请退出"
-fi
-
-if [[ $firmware =~ (redmi-ac2100|phicomm-k2p|newifi-d2|k2p-32m-usb|XY-C5|xiaomi-r3p) ]]; then
-	if [[ ! -f staging_dir/toolchain-mipsel_24kc_gcc-8.4.0_musl ]]; then
-		wget -cO sdk1.tar.xz https://mirrors.cloud.tencent.com/openwrt/snapshots/targets/ramips/mt7621/openwrt-sdk-21.02-SNAPSHOT-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-	fi
-elif [[ $firmware =~ (nanopi-r2s|nanopi-r4s) ]]; then
-	if [[ ! -f staging_dir/toolchain-aarch64_generic_gcc-8.4.0_musl ]]; then
-		wget -cO sdk1.tar.xz https://mirrors.cloud.tencent.com/openwrt/snapshots/targets/rockchip/armv8/openwrt-sdk-21.02-SNAPSHOT-rockchip-armv8_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-	fi
-elif [[ $firmware == "x86_64" ]]; then
-	if [[ ! -f staging_dir/toolchain-x86-64_gcc-8.4.0_musl ]]; then
-		wget -cO sdk1.tar.xz https://mirrors.cloud.tencent.com/openwrt/snapshots/targets/x86/64/openwrt-sdk-21.02-SNAPSHOT-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-	fi
 fi
 
 echo
@@ -129,20 +115,6 @@ echo
 echo
 sleep 3s
 
-if [ -f sdk1.tar.xz ]; then
-	mkdir sdk
-	tar -xJf sdk1.tar.xz -C sdk
-	cp -rf sdk/*/staging_dir/* ./staging_dir/
-	rm -rf sdk sdk1.tar.xz
-	if [ -f /usr/bin/python ]; then
-		ln -sf /usr/bin/python staging_dir/host/bin/python
-	else
-		ln -sf /usr/bin/python3 staging_dir/host/bin/python
-	fi
-	ln -sf /usr/bin/python3 staging_dir/host/bin/python3
-fi
-
-sed -i '/\(tools\|toolchain\)\/Makefile/d' Makefile
 sed -i 's,$(STAGING_DIR_HOST)/bin/upx,upx,' package/feeds/custom/*/Makefile
 
 make -j$(($(nproc)+1)) download v=s ; make -j$(($(nproc)+1)) || make -j1 V=s

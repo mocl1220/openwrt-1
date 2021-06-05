@@ -6,14 +6,6 @@ version=`uci get base_config.@status[0].version 2>/dev/null`
 test -n "${DISTRIB_ID}" || DISTRIB_ID=OpenWrt
 DISTRIB_ID=`echo -n $DISTRIB_ID | tr a-z A-Z`
 
-MACADDR=""
-test -e /usr/share/natcapd/board_mac.lua && MACADDR=`lua /usr/share/natcapd/board_mac.lua`
-test -n "$MACADDR" || MACADDR=`cat /etc/board.json | grep macaddr | tr a-f A-F | grep -o "[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]" | head -n1`
-test -n "$MACADDR" || MACADDR=`cat /sys/class/net/eth0/address | tr a-z A-Z`
-test -n "$MACADDR" || MACADDR=`cat /sys/class/net/eth1/address | tr a-z A-Z`
-test -n "$MACADDR" || MACADDR=`head -c6 /dev/urandom | hexdump -e '/1 "%02X:"' | head -c17`
-test -n "$MACADDR" || MACADDR=`head -c6 /dev/random | hexdump -e '/1 "%02X:"' | head -c17`
-
 sed -i '/profile.d/d' /lib/upgrade/keep.d/base-files
 
 sed -i '/openwrt_custom/d' /etc/opkg/distfeeds.conf
@@ -29,6 +21,14 @@ sed -i "s/git-.*-\(.*\)/git-\1/g" /usr/lib/lua/luci/version.lua
 
 ln -s /sbin/poweroff /sbin/shutdown
 
+sed -i '/S99opkg/d' /etc/crontabs/root
+echo "0 4 * * * sh /etc/rc.d/S99opkg >/tmp/opkgupdate.log 2>&1" >> /etc/crontabs/root
+sed -i '/memclean/d' /etc/crontabs/root
+echo "*/30 * * * * sh /sbin/memclean" >> /etc/crontabs/root
+
+cpuinfo=`/sbin/cpuinfo 2>/dev/null`
+test -n "$cpuinfo" || sed -i "s/_('CPU Info'),cpuinfo.cpufreq,//" /www/luci-static/resources/view/status/include/10_system.js
+
 test $version -lt 1 && {
 	uci set luci.main.lang='auto'
 	uci set luci.main.mediaurlbase=/luci-static/edge
@@ -41,17 +41,16 @@ test $version -lt 1 && {
 		uci del system.ntp.server
 		uci add_list system.ntp.server='ntp.aliyun.com'
 		uci add_list system.ntp.server='0.openwrt.pool.ntp.org'
+		uci set system.@system[0].autoupgrade_pkg='1'
+		uci set system.@system[0].autoupgrade_fm='1'
 		uci commit system
 	}
 
 	uci set uhttpd.main.rfc1918_filter=0
 	uci set uhttpd.main.redirect_https=0
-	uci set uhttpd.main.max_connections='200'
-	uci set uhttpd.main.max_requests='100'
 	uci commit uhttpd
 
-	SUBFIX=`echo -n $MACADDR | sed 's/://g' | tr a-z A-Z | tail -c4`
-	SSID=${DISTRIB_ID}_${SUBFIX}
+	SSID=${DISTRIB_ID}
 	SSID_PASSWD=88888888
 
 	uci set base_config.@status[0].SSID=${SSID}
@@ -59,9 +58,6 @@ test $version -lt 1 && {
 	
 	uci set upnpd.config.enabled='1'
 	uci commit upnpd
-
-	grep -q S99opkg /etc/crontabs/root ||
-		echo "0 4 * * * sh /etc/rc.d/S99opkg >/tmp/opkgupdate.log 2>&1" >> /etc/crontabs/root
 	
 	grep -q log-facility /etc/dnsmasq.conf ||
 		echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
@@ -69,22 +65,24 @@ test $version -lt 1 && {
 	grep -q /etc/dnsmasq.d /etc/dnsmasq.conf ||
 		echo "conf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
 
-	uci set turboacc.config.sfe_ipv6='1'
+	uci set turboacc.config.sfe_flow='0'
 	uci commit turboacc
 
 	uci set fstab.@global[0].anon_mount=1
 	uci commit fstab
  
+ 	test ! -f /etc/config/placeholder && {
 	sed -i 's/root:.*/root:$1$tTPCBw1t$ldzfp37h5lSpO9VXk4uUE\/:18336:0:99999:7:::/g' /etc/shadow
- 
 	uci set network.lan.ipaddr="10.0.0.1"
 	uci set network.@globals[0].packet_steering=1
 	uci commit network
+	}
   
 	uci set dhcp.@dnsmasq[0].dns_redirect='1'
 	uci set dhcp.dnsmasq[0].allservers='1'
 	uci set dhcp.lan.force='1'
 	uci set dhcp.@dnsmasq[0].cachesize='1500'
+	uci set dhcp.@dnsmasq[0].min_ttl='3600'
 	uci set dhcp.lan.ra='hybrid'
 	uci set dhcp.lan.ndp='hybrid'
 	uci set dhcp.lan.dhcpv6='hybrid'
@@ -93,6 +91,10 @@ test $version -lt 1 && {
 
 	uci set nft-qos.default.limit_enable='0'
 	uci commit nft-qos
+
+	uci set system.@system[0].conloglevel='4'
+	uci set system.@system[0].cronloglevel='8'
+	uci commit system
 }
 
 # kB
